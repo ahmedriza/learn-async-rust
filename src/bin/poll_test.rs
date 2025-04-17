@@ -22,7 +22,7 @@ fn main() -> anyhow::Result<()> {
     let base_url = env::args()
         .nth(1)
         .unwrap_or_else(|| String::from("localhost"));
-    let addr = format!("{}:8080", base_url);
+    let addr = format!("{}:7070", base_url);
 
     for i in 0..n_events {
         let delay = (n_events - i) * 1000;
