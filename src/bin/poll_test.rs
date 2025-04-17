@@ -73,7 +73,7 @@ fn handle_events(
     let mut handled_events = 0;
     for event in events {
         let index = event.token();
-        let mut data = vec![0u8; 4096];
+        let mut data = vec![0u8; 16];
 
         // loop until we read all the data from the stream
         // Remember how important it is to fully drain the buffer when using
