@@ -95,7 +95,7 @@ fn handle_events(
                 Ok(n) => {
                     let txt = String::from_utf8_lossy(&data[..n]);
                     println!("Received: {:?}", event);
-                    println!("{txt}\n------\n");
+                    println!("{txt}\n---------\n");
                     // We do not break out of the loop since we have to read
                     // until 0 is returned (or an error) to be sure that 
                     // we've drained the buffer fully.
