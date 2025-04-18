@@ -32,7 +32,7 @@ fn main() -> anyhow::Result<()> {
         let mut stream = TcpStream::connect(&addr)?;
         stream.set_nonblocking(true)?;
         // Disable Nagle's algorithm to send the request immediately
-        stream.set_nodelay(true)?;
+        // stream.set_nodelay(true)?;
 
         stream.write_all(request.as_bytes())?;
 
