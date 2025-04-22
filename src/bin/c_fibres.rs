@@ -1,5 +1,3 @@
-#![feature(naked_functions)]
-
 use std::arch::{asm, naked_asm};
 
 pub const DEFAULT_STACK_SIZE: usize = 1024 * 1024 * 2;
@@ -9,9 +7,59 @@ pub static mut RUNTIME: usize = 0;
 
 // -----------------------------------------------------------------------------
 
+#[derive(Debug, Default)]
+#[repr(C)]
+pub struct ThreadContext {
+    rsp: u64,
+    r15: u64,
+    r14: u64,
+    r13: u64,
+    r12: u64,
+    rbx: u64,
+    rbp: u64,
+}
+
+// -----------------------------------------------------------------------------
+
+pub struct Thread {
+    stack: Vec<u8>,
+    ctx: ThreadContext,
+    state: State,
+}
+
+impl Thread {
+    pub fn new() -> Self {
+        Thread {
+            // Once a stack is allocated, it must not move. No `push()` on
+            // the vector or any other methods that might trigger a relocation.
+            // If the stack is reallocated, any pointers we hold to it are
+            // invalidated.
+            stack: vec![0; DEFAULT_STACK_SIZE],
+            ctx: ThreadContext::default(),
+            state: State::Available,
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+
+#[derive(PartialEq, Eq, Debug)]
+pub enum State {
+    // Thread is available and ready to be assigned a task if needed
+    Available,
+
+    // Thread is running
+    Running,
+
+    // Thread is ready to move forward and resume execution
+    Ready,
+}
+
+// -----------------------------------------------------------------------------
+
 pub struct Runtime {
-    pub threads: Vec<Thread>,
-    pub current: usize,
+    threads: Vec<Thread>,
+    __current: usize,
 }
 
 impl Runtime {
@@ -30,8 +78,16 @@ impl Runtime {
         threads.append(&mut available_threads);
         Runtime {
             threads,
-            current: 0,
+            __current: 0,
         }
+    }
+
+    fn current(&self) -> usize {
+        self.__current
+    }
+
+    fn set_current(&mut self, current: usize) {
+        self.__current = current;
     }
 
     // After the call to `init()`, we have to make sure we don't do anything
@@ -63,8 +119,9 @@ impl Runtime {
         // it's ready to be assigned a new task, and then immediately call
         // `t_yield` to switch to the next thread which will schedule a new
         // thread to be run.
-        if self.current != 0 {
-            self.threads[self.current].state = State::Available;
+        let pos = self.current();
+        if pos != 0 {
+            self.threads[pos].state = State::Available;
             self.t_yield();
         }
     }
@@ -113,24 +170,27 @@ impl Runtime {
     // a note that this is probably avoidable if we change our design.
     #[inline(never)]
     fn t_yield(&mut self) -> bool {
-        let mut pos = self.current;
+        let mut pos = self.current();
         while self.threads[pos].state != State::Ready {
             pos += 1;
             if pos == self.threads.len() {
                 pos = 0;
             }
-            if pos == self.current {
+            // Could not find a thread that is ready to run.  We are done.
+            if pos == self.current() {
                 return false;
             }
         }
 
-        if self.threads[self.current].state != State::Available {
-            self.threads[self.current].state = State::Ready;
+        // We found a thread that is ready to run.  We need to switch to it.
+        // Set the current thread to `Ready` and the new thread to `Running`.
+        let _current = self.current();
+        if self.threads[_current].state != State::Available {
+            self.threads[_current].state = State::Ready;
         }
-
         self.threads[pos].state = State::Running;
-        let old_pos = self.current;
-        self.current = pos;
+        let old_pos = _current;
+        self.set_current(pos);
 
         // The `clobber_abi("C")` tells the compiler that it may not assume
         // that any general-purpose registers are preserved across the asm!
@@ -175,56 +235,6 @@ impl Runtime {
 
 // -----------------------------------------------------------------------------
 
-#[derive(PartialEq, Eq, Debug)]
-pub enum State {
-    // Thread is available and ready to be assigned a task if needed
-    Available,
-
-    // Thread is running
-    Running,
-
-    // Thread is ready to move forward and resume execution
-    Ready,
-}
-
-// -----------------------------------------------------------------------------
-
-pub struct Thread {
-    pub stack: Vec<u8>,
-    pub ctx: ThreadContext,
-    pub state: State,
-}
-
-impl Thread {
-    pub fn new() -> Self {
-        Thread {
-            // Once a stack is allocated, it must not move. No `push()` on
-            // the vector or any other methods that might trigger a relocation.
-            // If the stack is reallocated, any pointers we hold to it are
-            // invalidated.
-            stack: vec![0; DEFAULT_STACK_SIZE],
-            ctx: ThreadContext::default(),
-            state: State::Available,
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------
-
-#[derive(Debug, Default)]
-#[repr(C)]
-pub struct ThreadContext {
-    pub rsp: u64,
-    pub r15: u64,
-    pub r14: u64,
-    pub r13: u64,
-    pub r12: u64,
-    pub rbx: u64,
-    pub rbp: u64,
-}
-
-// -----------------------------------------------------------------------------
-
 fn guard() {
     unsafe {
         let rt_ptr = RUNTIME as *mut Runtime;
@@ -232,9 +242,9 @@ fn guard() {
     }
 }
 
-#[naked]
+#[unsafe(naked)]
 unsafe extern "C" fn skip() {
-    unsafe { naked_asm!("ret") }
+    naked_asm!("ret")
 }
 
 pub fn yield_thread() {
@@ -244,29 +254,27 @@ pub fn yield_thread() {
     }
 }
 
-#[naked]
+#[unsafe(naked)]
 #[unsafe(no_mangle)]
 // #[cfg_attr(target_os = "macos", unsafe(export_name = "\x01switch"))]
 unsafe extern "C" fn switch() {
-    unsafe {
-        naked_asm!(
-            "mov [rdi + 0x00], rsp",
-            "mov [rdi + 0x08], r15",
-            "mov [rdi + 0x10], r14",
-            "mov [rdi + 0x18], r13",
-            "mov [rdi + 0x20], r12",
-            "mov [rdi + 0x28], rbx",
-            "mov [rdi + 0x30], rbp",
-            "mov rsp, [rsi + 0x00]",
-            "mov r15, [rsi + 0x08]",
-            "mov r14, [rsi + 0x10]",
-            "mov r13, [rsi + 0x18]",
-            "mov r12, [rsi + 0x20]",
-            "mov rbx, [rsi + 0x28]",
-            "mov rbp, [rsi + 0x30]",
-            "ret"
-        );
-    }
+    naked_asm!(
+        "mov [rdi + 0x00], rsp",
+        "mov [rdi + 0x08], r15",
+        "mov [rdi + 0x10], r14",
+        "mov [rdi + 0x18], r13",
+        "mov [rdi + 0x20], r12",
+        "mov [rdi + 0x28], rbx",
+        "mov [rdi + 0x30], rbp",
+        "mov rsp, [rsi + 0x00]",
+        "mov r15, [rsi + 0x08]",
+        "mov r14, [rsi + 0x10]",
+        "mov r13, [rsi + 0x18]",
+        "mov r12, [rsi + 0x20]",
+        "mov rbx, [rsi + 0x28]",
+        "mov rbp, [rsi + 0x30]",
+        "ret"
+    );
 }
 
 fn main() {
