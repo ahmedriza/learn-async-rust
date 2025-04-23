@@ -1,9 +1,12 @@
+// `cargo run --target x86_64-apple-darwin --bin c_fibres`
+
 use std::arch::{asm, naked_asm};
 
 pub const DEFAULT_STACK_SIZE: usize = 1024 * 1024 * 2;
 pub const MAX_THREADS: usize = 4;
 
 pub static mut RUNTIME: usize = 0;
+
 
 // -----------------------------------------------------------------------------
 
@@ -29,12 +32,13 @@ pub struct Thread {
 
 impl Thread {
     pub fn new() -> Self {
+        let stack = vec![0; DEFAULT_STACK_SIZE];
         Thread {
             // Once a stack is allocated, it must not move. No `push()` on
             // the vector or any other methods that might trigger a relocation.
             // If the stack is reallocated, any pointers we hold to it are
             // invalidated.
-            stack: vec![0; DEFAULT_STACK_SIZE],
+            stack,
             ctx: ThreadContext::default(),
             state: State::Available,
         }
@@ -192,19 +196,20 @@ impl Runtime {
         let old_pos = _current;
         self.set_current(pos);
 
+        println!("\t\tSwitching from thread {} to thread {}", old_pos, pos);
+
         // The `clobber_abi("C")` tells the compiler that it may not assume
         // that any general-purpose registers are preserved across the asm!
         // block. The compiler will emit instructions to push the registers
         // it uses to the stack, and restore them when resuming after the
         // asm! block.
-        //
         unsafe {
-            let old: *mut ThreadContext = &mut self.threads[old_pos].ctx;
-            let new: *const ThreadContext = &self.threads[pos].ctx;
+            let __old: *mut ThreadContext = &mut self.threads[old_pos].ctx;
+            let __new: *const ThreadContext = &self.threads[pos].ctx;
             asm!(
             "call _switch",
-            in("rdi") old,
-            in("rsi") new,
+            in("rdi") __old,
+            in("rsi") __new,
             clobber_abi("C")
             );
         }
@@ -228,6 +233,11 @@ impl Runtime {
             std::ptr::write(s_ptr.offset(-24) as *mut u64, skip as u64);
             std::ptr::write(s_ptr.offset(-32) as *mut u64, f as u64);
             available.ctx.rsp = s_ptr.offset(-32) as u64;
+
+            println!(
+                "Thread stack, size: {}, s_ptr: {:#018x}, rsp: {:#018x}",
+                size, s_ptr as u64, available.ctx.rsp
+            );
         }
         available.state = State::Ready;
     }
@@ -258,6 +268,11 @@ pub fn yield_thread() {
 #[unsafe(no_mangle)]
 // #[cfg_attr(target_os = "macos", unsafe(export_name = "\x01switch"))]
 unsafe extern "C" fn switch() {
+    // Save the current value of registers to the location pointed to by
+    // the first argument (rdi).
+    //
+    // Then copy the values of the of the location pointed to by the second
+    // argument (rsi) to the registers.  This is our new stack.
     naked_asm!(
         "mov [rdi + 0x00], rsp",
         "mov [rdi + 0x08], r15",
