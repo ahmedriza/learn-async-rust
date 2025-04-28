@@ -7,7 +7,6 @@ pub const MAX_THREADS: usize = 4;
 
 pub static mut RUNTIME: usize = 0;
 
-
 // -----------------------------------------------------------------------------
 
 #[derive(Debug, Default)]
@@ -106,7 +105,10 @@ impl Runtime {
     // Continually call `t_yield` until it returns false, which means that
     // there is no more work to do and we can exit the process.
     pub fn run(&mut self) {
-        while self.t_yield() {}
+        while self.t_yield() {
+            println!("\t\trun():\t\tThread {} yielded", self.current());
+        }
+        println!("\t\trun():\t\tThread {} exiting", self.current());
         std::process::exit(0);
     }
 
@@ -124,6 +126,7 @@ impl Runtime {
         // `t_yield` to switch to the next thread which will schedule a new
         // thread to be run.
         let pos = self.current();
+        println!("\t\tt_return():\tCurrent thread: {}", pos);
         if pos != 0 {
             self.threads[pos].state = State::Available;
             self.t_yield();
@@ -182,6 +185,11 @@ impl Runtime {
             }
             // Could not find a thread that is ready to run.  We are done.
             if pos == self.current() {
+                println!(
+                    "\t\tt_yield():\tCurrent thread: {}, no thread is ready \
+                    to run, exiting",
+                    self.current()
+                );
                 return false;
             }
         }
@@ -196,13 +204,26 @@ impl Runtime {
         let old_pos = _current;
         self.set_current(pos);
 
-        println!("\t\tSwitching from thread {} to thread {}", old_pos, pos);
+        println!(
+            "\t\tt_yield():\tCurrent thread: {}, switching from thread {} to thread {}, \
+            thread {} sp: {:#018x}, thread {} sp: {:#018x}",
+            _current,
+            old_pos,
+            pos,
+            old_pos,
+            self.threads[old_pos].ctx.rsp,
+            pos,
+            self.threads[pos].ctx.rsp
+        );
 
         // The `clobber_abi("C")` tells the compiler that it may not assume
         // that any general-purpose registers are preserved across the asm!
         // block. The compiler will emit instructions to push the registers
         // it uses to the stack, and restore them when resuming after the
         // asm! block.
+        //
+        // The new context is either a new task or all the information the CPU
+        // needs to resume work on an existing task.
         unsafe {
             let __old: *mut ThreadContext = &mut self.threads[old_pos].ctx;
             let __new: *const ThreadContext = &self.threads[pos].ctx;
@@ -214,8 +235,14 @@ impl Runtime {
             );
         }
 
+        if _current == 0 {
+            println!("\t\tt_yield():\tCurrent thread: {}", _current);
+        } else {
+            println!("\t\tt_yield():\tCurrent thread: {}", _current);
+        }
+
         // This is just a way for us to prevent the compiler from optimizing
-        // our code away.  The code never reaches this point, anyway.
+        // our code away.
         self.threads.len() > 0
     }
 
@@ -235,7 +262,7 @@ impl Runtime {
             available.ctx.rsp = s_ptr.offset(-32) as u64;
 
             println!(
-                "Thread stack, size: {}, s_ptr: {:#018x}, rsp: {:#018x}",
+                "spawn(): Thread stack, size: {}, s_ptr: {:#018x}, rsp: {:#018x}",
                 size, s_ptr as u64, available.ctx.rsp
             );
         }
@@ -248,6 +275,8 @@ impl Runtime {
 fn guard() {
     unsafe {
         let rt_ptr = RUNTIME as *mut Runtime;
+        let _current = rt_ptr.as_ref().unwrap().current();
+        println!("\t\tguard():\tCurrent thread: {}, guard", _current);
         (*rt_ptr).t_return();
     }
 }
@@ -260,6 +289,8 @@ unsafe extern "C" fn skip() {
 pub fn yield_thread() {
     unsafe {
         let rt_ptr = RUNTIME as *mut Runtime;
+        let _current = rt_ptr.as_ref().unwrap().current();
+        println!("\t\tyield_thread():\tCurrent thread: {}", _current);
         (*rt_ptr).t_yield();
     }
 }
@@ -268,11 +299,15 @@ pub fn yield_thread() {
 #[unsafe(no_mangle)]
 // #[cfg_attr(target_os = "macos", unsafe(export_name = "\x01switch"))]
 unsafe extern "C" fn switch() {
+    //
     // Save the current value of registers to the location pointed to by
-    // the first argument (rdi).
+    // the first argument (rdi).  `rdi` contains the ThreadContext of the
+    // old thread.
     //
     // Then copy the values of the of the location pointed to by the second
     // argument (rsi) to the registers.  This is our new stack.
+    // `rsi` contains the ThreadContext of the new thread.
+    //
     naked_asm!(
         "mov [rdi + 0x00], rsp",
         "mov [rdi + 0x08], r15",
@@ -292,23 +327,38 @@ unsafe extern "C" fn switch() {
     );
 }
 
+fn f() {
+    println!("\t\tf():\t\tThread: 1 Starting");
+    let id = 1;
+    for i in 0..=1 {
+        println!("\t\tf():\t\tThread: {} counter: {}", id, i);
+        yield_thread();
+    }
+    println!("\t\tf():\t\tThread 1 Finished");
+}
+
 fn main() {
     let mut runtime = Runtime::new();
 
     runtime.init();
 
+    runtime.spawn(f);
+
+    /*
     runtime.spawn(|| {
-        println!("Thread 1 Starting");
+        println!("Thread: 1 Starting");
         let id = 1;
-        for i in 0..10 {
+        for i in 0..2 {
             println!("Thread: {} counter: {}", id, i);
             yield_thread();
         }
         println!("Thread 1 Finished");
     });
+    */
 
+    /*
     runtime.spawn(|| {
-        println!("Thread 2 Starting");
+        println!("Thread: 2 Starting");
         let id = 2;
         for i in 0..15 {
             println!("Thread: {} counter: {}", id, i);
@@ -316,6 +366,7 @@ fn main() {
         }
         println!("Thread 2 Finished");
     });
+    */
 
     runtime.run();
 }

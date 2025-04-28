@@ -19,8 +19,8 @@ pub struct ThreadContext {
     x21: u64,
     x20: u64,
     x19: u64,
-    x29: u64, // fp
-    x30: u64, // lr, contains the return address
+    fp: u64, // fp
+    lr: u64, // lr, contains the return address
 }
 
 // -----------------------------------------------------------------------------
@@ -104,6 +104,7 @@ impl Runtime {
     pub fn t_return(&mut self) {
         let pos = self.current();
         if pos != 0 {
+            // println!("\t\tThread {} finished", pos);
             self.threads[pos].state = State::Available;
             self.t_yield();
         }
@@ -124,8 +125,8 @@ impl Runtime {
             std::ptr::write(s_ptr.offset(-32) as *mut u64, f as u64);
             available.ctx.sp = s_ptr.offset(-32) as u64;
 
-            available.ctx.x29 = s_ptr.offset(-32) as u64;
-            available.ctx.x30 = guard as u64;
+            available.ctx.fp = s_ptr.offset(-32) as u64;
+            available.ctx.lr = f as u64;
 
             println!(
                 "Thread stack, size: {}, s_ptr: {:#018x}, rsp: {:#018x}",
@@ -159,7 +160,12 @@ impl Runtime {
         let old_pos = _current;
         self.set_current(pos);
 
-        println!("\t\tSwitching from thread {} to thread {}", old_pos, pos);
+        println!("\tSwitching from thread {} to thread {}", old_pos, pos);
+
+        // let current_thread = &self.threads[pos];
+        // println!("\t\tCurrent thread sp: {:#018x}", current_thread.ctx.sp);
+        // println!("\t\tCurrent thread fp: {:#018x}", current_thread.ctx.fp);
+        // println!("\t\tCurrent thread lr: {:#018x}", current_thread.ctx.lr);
 
         // The `clobber_abi("C")` tells the compiler that it may not assume
         // that any general-purpose registers are preserved across the asm!
@@ -219,10 +225,8 @@ unsafe extern "C" fn switch() {
         // Save the context of the current thread
         // Save the current value of registers to the location pointed to by
         // the x0 register.
-    
         "mov x2, sp",
         "str x2,  [x0]",
-        
         "str x28, [x0, #0x08]",
         "str x27, [x0, #0x10]",
         "str x26, [x0, #0x18]",
@@ -242,7 +246,7 @@ unsafe extern "C" fn switch() {
         // "stp x23, x24, [sp, -16]!",
         // "stp x25, x26, [sp, -16]!",
         // "stp x27, x28, [sp, -16]!",
-        
+
         // Switch to the next thread
         // "ldr r0, =RUNTIME",
         // "ldr r0, [r0]",
@@ -256,9 +260,8 @@ unsafe extern "C" fn switch() {
         // "ldp x21, x22, [sp], 16",
         // "ldp x19, x20, [sp], 16",
         // "ldp x29, x30, [sp], 16",
-
-        "ldr x29, [x1]", // set the frame pointer
         
+        "ldr x29, [x1]", // set the frame pointer
         "ldr x28, [x1, #0x08]",
         "ldr x27, [x1, #0x10]",
         "ldr x26, [x1, #0x18]",
@@ -271,7 +274,6 @@ unsafe extern "C" fn switch() {
         "ldr x19, [x1, #0x50]",
         // "ldr x29, [x1, #0x58]", // set the frame pointer
         "ldr x30, [x1, #0x60]", // set the link register
-
         // Return to the next thread
         "ret"
     );
@@ -285,23 +287,23 @@ pub fn main() {
     println!("Runtime initialized");
 
     runtime.spawn(|| {
-        println!("Thread 1 Starting");
+        println!("Thread: 1 Starting");
         let id = 1;
         for i in 0..10 {
             println!("Thread: {} counter: {}", id, i);
             yield_thread();
         }
-        println!("Thread 1 Finished");
+        println!("Thread: 1 Finished");
     });
 
     runtime.spawn(|| {
-        println!("Thread 2 Starting");
+        println!("Thread: 2 Starting");
         let id = 2;
         for i in 0..15 {
             println!("Thread: {} counter: {}", id, i);
             yield_thread();
         }
-        println!("Thread 2 Finished");
+        println!("Thread: 2 Finished");
     });
 
     runtime.run();
