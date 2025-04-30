@@ -8,18 +8,22 @@ pub static mut RUNTIME: usize = 0;
 #[derive(Debug, Default)]
 #[repr(C)]
 pub struct ThreadContext {
-    sp: u64,
-    x28: u64,
-    x27: u64,
-    x26: u64,
-    x25: u64,
-    x24: u64,
-    x23: u64,
-    x22: u64,
-    x21: u64,
-    x20: u64,
+    // callee saved registers, x19 to x28
     x19: u64,
-    fp: u64, // x31 or frame pointer
+    x20: u64,
+    x21: u64,
+    x22: u64,
+    x23: u64,
+    x24: u64,
+    x25: u64,
+    x26: u64,
+    x27: u64,
+    x28: u64,
+    // x31 or stack pointer
+    sp: u64,
+    // x29 or frame pointer
+    fp: u64,
+    // x30 or link register
     lr: u64, // x30 or link register contains the return address
 }
 
@@ -105,18 +109,14 @@ impl Runtime {
     }
 
     pub fn run(&mut self) {
-        while self.t_yield() {
-            // println!("\t\trun():\t\tThread {} yielded", self.current());
-        }
+        while self.t_yield() {}
         println!("\t\trun():\t\tThread {} exiting", self.current());
         std::process::exit(0);
     }
 
     pub fn t_return(&mut self) {
         let pos = self.current();
-        // println!("\t\tt_return():\tCurrent thread: {}", pos);
         if pos != 0 {
-            // println!("\t\tThread {} finished", pos);
             self.threads[pos].state = State::Available;
             self.t_yield();
         }
@@ -151,20 +151,6 @@ impl Runtime {
         let old_pos = _current;
         self.set_current(pos);
 
-        /*
-        println!(
-            "\t\tt_yield():\tCurrent thread: {}, switching from thread {} to thread {}, \
-            thread {} sp: {:#018x}, thread {} sp: {:#018x}",
-            _current,
-            old_pos,
-            pos,
-            old_pos,
-            self.threads[old_pos].ctx.sp,
-            pos,
-            self.threads[pos].ctx.sp
-        );
-        */
-
         // The `clobber_abi("C")` tells the compiler that it may not assume
         // that any general-purpose registers are preserved across the asm!
         // block. The compiler will emit instructions to push the registers
@@ -181,16 +167,6 @@ impl Runtime {
             );
         }
 
-        /*
-        if _current == 0 {
-            println!("\t\tt_yield():\tCurrent thread: {}", _current);
-        } else {
-            println!("\t\tt_yield():\tCurrent thread: {}", _current);
-        }
-        */
-
-        // This is just a way for us to prevent the compiler from optimizing
-        // our code away.  The code never reaches this point, anyway.
         self.threads.len() > 0
     }
 
@@ -204,16 +180,9 @@ impl Runtime {
         unsafe {
             let s_ptr = available.stack.as_mut_ptr().offset(size as isize);
             let s_ptr = (s_ptr as usize & !0x0f) as *mut u8;
-            //
-            // std::ptr::write(s_ptr.offset(-16) as *mut u64, guard as u64);
-            // std::ptr::write(s_ptr.offset(-24) as *mut u64, skip as u64);
-            // std::ptr::write(s_ptr.offset(-32) as *mut u64, f as u64);
             std::ptr::write(s_ptr.offset(-32) as *mut u64, guard as u64);
             available.ctx.sp = s_ptr.offset(-32) as u64;
-
-            // available.ctx.fp = s_ptr.offset(-32) as u64;
             available.ctx.lr = f as u64;
-            // available.ctx.lr = guard as u64;
 
             println!(
                 "Thread stack, size: {}, s_ptr: {:#018x}, rsp: {:#018x}",
@@ -229,8 +198,6 @@ impl Runtime {
 fn guard() {
     unsafe {
         let rt_ptr = RUNTIME as *mut Runtime;
-        // let _current = rt_ptr.as_ref().unwrap().current();
-        // println!("\t\tguard():\tCurrent thread: {}, guard", _current);
         (*rt_ptr).t_return();
     }
 }
@@ -244,8 +211,6 @@ unsafe extern "C" fn skip() {
 pub fn yield_thread() {
     unsafe {
         let rt_ptr = RUNTIME as *mut Runtime;
-        // let _current = rt_ptr.as_ref().unwrap().current();
-        // println!("\t\tyield_thread():\tCurrent thread: {}", _current);
         (*rt_ptr).t_yield();
     }
 }
@@ -256,51 +221,61 @@ unsafe extern "C" fn switch() {
     naked_asm!(
         // Save the context of the current thread
         // Save the current value of registers to the location pointed to by
-        // the x0 register. Use x19 as a temporary register.
-        "mov x19, sp",
+        // the x0 register. Use x10 as a temporary register.
         "str x19, [x0, #0x00]",
-        "str x28, [x0, #0x08]",
-        "str x27, [x0, #0x10]",
-        "str x26, [x0, #0x18]",
-        "str x25, [x0, #0x20]",
+        "str x20, [x0, #0x08]",
+        "str x21, [x0, #0x10]",
+        "str x22, [x0, #0x18]",
+        "str x23, [x0, #0x20]",
         "str x24, [x0, #0x28]",
-        "str x23, [x0, #0x30]",
-        "str x22, [x0, #0x38]",
-        "str x21, [x0, #0x40]",
-        "str x20, [x0, #0x48]",
-        "str x19, [x0, #0x50]",
-        "str fp,  [x0, #0x58]", // x29
-        "str lr,  [x0, #0x60]", // x30
+        "str x25, [x0, #0x30]",
+        "str x26, [x0, #0x38]",
+        "str x27, [x0, #0x40]",
+        "str x28, [x0, #0x48]",
+        "mov x10, sp",
+        "str x10, [x0, #0x50]",
+        "str fp,  [x0, #0x58]",
+        "str lr,  [x0, #0x60]",
         //
         //
+        // Set up the new thread context.  Load the values of the registers
+        // from the location pointed to by x1. Use x10 and x11 as temporary
+        // registers.
+        "ldr x19, [x1, #0x00]",
+        "ldr x20, [x1, #0x08]",
+        "ldr x21, [x1, #0x10]",
+        "ldr x22, [x1, #0x18]",
+        "ldr x23, [x1, #0x20]",
+        "ldr x24, [x1, #0x28]",
+        "ldr x25, [x1, #0x30]",
+        "ldr x26, [x1, #0x38]",
+        "ldr x27, [x1, #0x40]",
+        "ldr x28, [x1, #0x48]",
         // Load the stack pointer from the new thread context.
         // We can't directly load the stack pointer from the address in x1.
-        "ldr x19, [x1, #0x00]", // load the value of address at x1 to x19.
-        "mov sp, x19",          // set the stack pointer
-        // Load the rest of the registers from the new thread context
-        "ldr x28, [x1, #0x08]",
-        "ldr x27, [x1, #0x10]",
-        "ldr x26, [x1, #0x18]",
-        "ldr x25, [x1, #0x20]",
-        "ldr x24, [x1, #0x28]",
-        "ldr x23, [x1, #0x30]",
-        "ldr x22, [x1, #0x38]",
-        "ldr x21, [x1, #0x40]",
-        "ldr x20, [x1, #0x48]",
-        "ldr x19, [x1, #0x50]",
-        "ldr x29, [x1, #0x58]", // set the frame pointer
-        "ldr lr,  [x1, #0x60]", // set the link register
-        //
-        // load the return address from the stack. This is the address that
-        // the function will jump to when it returns.
-        "ldr x19, [sp]",
-        // Save the current link register to x16.  This is the address at which
+        // First load the value of the address in x1 to x10, then set the stack
+        // pointer to the value in x10.
+        "ldr x10, [x1, #0x50]",
+        "mov sp, x10",
+        "ldr fp, [x1, #0x58]",
+        "ldr lr, [x1, #0x60]",
+        // Save the current link register to x11.  This is the address at which
         // the thread will start or resume execution from.
-        "mov x16, lr",
-        // Set the link register to the stack pointer saved above.
-        "mov lr, x19",
-        // jump to the new pc location.
-        "br x16",
+        "mov x11, lr",
+        //
+        // Load the return address from the stack. This is the address that
+        // the function will jump to when it returns.
+        // This is only going to be used when the newly spawned thread starts
+        // executing, since, in the `spawn()` function, we put the
+        // address of the `guard()` function in sp.
+        // In all other cases, what we set to `lr` here doesn't really matter,
+        // since the functions will take care of storing the actual `lr` and
+        // restoring them during normal function prologue and epilogue.
+        "ldr x10, [sp]",
+        "mov lr, x10", // set the link register to address in sp
+        //
+        // jump to the location in x11 which is the actual `lr`.
+        "ret x11",
     );
 }
 
@@ -308,7 +283,7 @@ unsafe extern "C" fn switch() {
 fn f() {
     println!("\t\tf():\t\tThread: 1 Starting");
     let id = 1;
-    for i in 0..10 {
+    for i in 0..2 {
         println!("\t\tf():\t\tThread: {} counter: {}", id, i);
         yield_thread();
     }
@@ -330,8 +305,6 @@ pub fn main() {
     let mut runtime = Runtime::new();
 
     runtime.init();
-
-    println!("Runtime initialized");
 
     // runtime.spawn(f);
     // runtime.spawn(g);
