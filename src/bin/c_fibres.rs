@@ -179,8 +179,7 @@ impl Runtime {
         let old_pos = _current;
         self.set_current(pos);
 
-        // #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-        #[cfg(target_arch = "aarch64")]
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
             unsafe {
                 let __old: *mut ThreadContext = &mut self.threads[old_pos].ctx;
