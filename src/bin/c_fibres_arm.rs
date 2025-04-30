@@ -19,8 +19,8 @@ pub struct ThreadContext {
     x21: u64,
     x20: u64,
     x19: u64,
-    fp: u64, // fp
-    lr: u64, // lr, contains the return address
+    fp: u64, // x31 or frame pointer
+    lr: u64, // x30 or link register contains the return address
 }
 
 // -----------------------------------------------------------------------------
@@ -304,6 +304,7 @@ unsafe extern "C" fn switch() {
     );
 }
 
+#[allow(unused)]
 fn f() {
     println!("\t\tf():\t\tThread: 1 Starting");
     let id = 1;
@@ -314,6 +315,7 @@ fn f() {
     println!("\t\tf():\t\tThread 1 Finished");
 }
 
+#[allow(unused)]
 fn g() {
     println!("\t\tg():\t\tThread: 2 Starting");
     let id = 2;
@@ -331,30 +333,28 @@ pub fn main() {
 
     println!("Runtime initialized");
 
-    runtime.spawn(f);
-    runtime.spawn(g);
+    // runtime.spawn(f);
+    // runtime.spawn(g);
 
-    /*
     runtime.spawn(|| {
-        println!("Thread: 1 Starting");
+        println!("\t\tThread: 1 Starting");
         let id = 1;
-        for i in 0..10 {
-            println!("Thread: {} counter: {}", id, i);
+        for i in 0..=10 {
+            println!("\t\tThread: {} counter: {}", id, i);
             yield_thread();
         }
-        println!("Thread: 1 Finished");
+        println!("\t\tThread: 1 Finished");
     });
 
     runtime.spawn(|| {
-        println!("Thread: 2 Starting");
+        println!("\t\tThread: 2 Starting");
         let id = 2;
-        for i in 0..15 {
-            println!("Thread: {} counter: {}", id, i);
+        for i in 0..=15 {
+            println!("\t\tThread: {} counter: {}", id, i);
             yield_thread();
         }
-        println!("Thread: 2 Finished");
+        println!("\t\tThread: 2 Finished");
     });
-    */
 
     runtime.run();
 }
