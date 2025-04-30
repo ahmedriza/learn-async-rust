@@ -41,7 +41,8 @@ pub struct ThreadContext {
     rbp: u64,
 }
 
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+// #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[cfg(target_arch = "aarch64")]
 #[derive(Debug, Default)]
 #[repr(C)]
 pub struct ThreadContext {
@@ -178,7 +179,8 @@ impl Runtime {
         let old_pos = _current;
         self.set_current(pos);
 
-        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        // #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        #[cfg(target_arch = "aarch64")]
         {
             unsafe {
                 let __old: *mut ThreadContext = &mut self.threads[old_pos].ctx;
@@ -215,7 +217,8 @@ impl Runtime {
             .find(|t| t.state == State::Available)
             .expect("No available thread");
         let size = available.stack.len();
-        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        // #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        #[cfg(target_arch = "aarch64")]
         {
             unsafe {
                 let s_ptr = available.stack.as_mut_ptr().offset(size as isize);
@@ -298,7 +301,8 @@ unsafe extern "C" fn switch() {
     );
 }
 
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+// #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[cfg(target_arch = "aarch64")]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 unsafe extern "C" fn switch() {
