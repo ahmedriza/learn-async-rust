@@ -1,5 +1,4 @@
 // `cargo run --target x86_64-apple-darwin --bin c_fibres`
-
 use std::arch::{asm, naked_asm};
 
 pub const DEFAULT_STACK_SIZE: usize = 1024 * 1024 * 2;
@@ -105,9 +104,7 @@ impl Runtime {
     // Continually call `t_yield` until it returns false, which means that
     // there is no more work to do and we can exit the process.
     pub fn run(&mut self) {
-        while self.t_yield() {
-            println!("\t\trun():\t\tThread {} yielded", self.current());
-        }
+        while self.t_yield() {}
         println!("\t\trun():\t\tThread {} exiting", self.current());
         std::process::exit(0);
     }
@@ -126,7 +123,6 @@ impl Runtime {
         // `t_yield` to switch to the next thread which will schedule a new
         // thread to be run.
         let pos = self.current();
-        println!("\t\tt_return():\tCurrent thread: {}", pos);
         if pos != 0 {
             self.threads[pos].state = State::Available;
             self.t_yield();
@@ -204,18 +200,6 @@ impl Runtime {
         let old_pos = _current;
         self.set_current(pos);
 
-        println!(
-            "\t\tt_yield():\tCurrent thread: {}, switching from thread {} to thread {}, \
-            thread {} sp: {:#018x}, thread {} sp: {:#018x}",
-            _current,
-            old_pos,
-            pos,
-            old_pos,
-            self.threads[old_pos].ctx.rsp,
-            pos,
-            self.threads[pos].ctx.rsp
-        );
-
         // The `clobber_abi("C")` tells the compiler that it may not assume
         // that any general-purpose registers are preserved across the asm!
         // block. The compiler will emit instructions to push the registers
@@ -233,12 +217,6 @@ impl Runtime {
             in("rsi") __new,
             clobber_abi("C")
             );
-        }
-
-        if _current == 0 {
-            println!("\t\tt_yield():\tCurrent thread: {}", _current);
-        } else {
-            println!("\t\tt_yield():\tCurrent thread: {}", _current);
         }
 
         // This is just a way for us to prevent the compiler from optimizing
@@ -275,8 +253,6 @@ impl Runtime {
 fn guard() {
     unsafe {
         let rt_ptr = RUNTIME as *mut Runtime;
-        let _current = rt_ptr.as_ref().unwrap().current();
-        println!("\t\tguard():\tCurrent thread: {}, guard", _current);
         (*rt_ptr).t_return();
     }
 }
@@ -289,15 +265,12 @@ unsafe extern "C" fn skip() {
 pub fn yield_thread() {
     unsafe {
         let rt_ptr = RUNTIME as *mut Runtime;
-        let _current = rt_ptr.as_ref().unwrap().current();
-        println!("\t\tyield_thread():\tCurrent thread: {}", _current);
         (*rt_ptr).t_yield();
     }
 }
 
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
-// #[cfg_attr(target_os = "macos", unsafe(export_name = "\x01switch"))]
 unsafe extern "C" fn switch() {
     //
     // Save the current value of registers to the location pointed to by
@@ -339,12 +312,8 @@ fn f() {
 
 fn main() {
     let mut runtime = Runtime::new();
-
     runtime.init();
 
-    runtime.spawn(f);
-
-    /*
     runtime.spawn(|| {
         println!("Thread: 1 Starting");
         let id = 1;
@@ -354,9 +323,7 @@ fn main() {
         }
         println!("Thread 1 Finished");
     });
-    */
 
-    /*
     runtime.spawn(|| {
         println!("Thread: 2 Starting");
         let id = 2;
@@ -366,7 +333,6 @@ fn main() {
         }
         println!("Thread 2 Finished");
     });
-    */
 
     runtime.run();
 }

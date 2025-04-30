@@ -5,6 +5,20 @@ pub const MAX_THREADS: usize = 4;
 
 pub static mut RUNTIME: usize = 0;
 
+#[cfg(target_arch = "x86_64")]
+#[derive(Debug, Default)]
+#[repr(C)]
+pub struct ThreadContext {
+    rsp: u64,
+    r15: u64,
+    r14: u64,
+    r13: u64,
+    r12: u64,
+    rbx: u64,
+    rbp: u64,
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[derive(Debug, Default)]
 #[repr(C)]
 pub struct ThreadContext {
@@ -156,15 +170,31 @@ impl Runtime {
         // block. The compiler will emit instructions to push the registers
         // it uses to the stack, and restore them when resuming after the
         // asm! block.
-        unsafe {
-            let __old: *mut ThreadContext = &mut self.threads[old_pos].ctx;
-            let __new: *const ThreadContext = &self.threads[pos].ctx;
-            asm!(
-            "bl _switch",
-            in("x0") __old,
-            in("x1") __new,
-            clobber_abi("C")
-            );
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        {
+            unsafe {
+                let __old: *mut ThreadContext = &mut self.threads[old_pos].ctx;
+                let __new: *const ThreadContext = &self.threads[pos].ctx;
+                asm!(
+                "bl _switch",
+                in("x0") __old,
+                in("x1") __new,
+                clobber_abi("C")
+                );
+            }
+        }
+        #[cfg(target_arch = "x86_64")]
+        {
+            unsafe {
+                let __old: *mut ThreadContext = &mut self.threads[old_pos].ctx;
+                let __new: *const ThreadContext = &self.threads[pos].ctx;
+                asm!(
+                "call _switch",
+                in("rdi") __old,
+                in("rsi") __new,
+                clobber_abi("C")
+                );
+            }
         }
 
         self.threads.len() > 0
@@ -177,17 +207,36 @@ impl Runtime {
             .find(|t| t.state == State::Available)
             .expect("No available thread");
         let size = available.stack.len();
-        unsafe {
-            let s_ptr = available.stack.as_mut_ptr().offset(size as isize);
-            let s_ptr = (s_ptr as usize & !0x0f) as *mut u8;
-            std::ptr::write(s_ptr.offset(-32) as *mut u64, guard as u64);
-            available.ctx.sp = s_ptr.offset(-32) as u64;
-            available.ctx.lr = f as u64;
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        {
+            unsafe {
+                let s_ptr = available.stack.as_mut_ptr().offset(size as isize);
+                let s_ptr = (s_ptr as usize & !0x0f) as *mut u8;
+                std::ptr::write(s_ptr.offset(-32) as *mut u64, guard as u64);
+                available.ctx.sp = s_ptr.offset(-32) as u64;
+                available.ctx.lr = f as u64;
 
-            println!(
-                "Thread stack, size: {}, s_ptr: {:#018x}, rsp: {:#018x}",
-                size, s_ptr as u64, available.ctx.sp
-            );
+                println!(
+                    "Thread stack, size: {}, s_ptr: {:#018x}, rsp: {:#018x}",
+                    size, s_ptr as u64, available.ctx.sp
+                );
+            }
+        }
+        #[cfg(target_arch = "x86_64")]
+        {
+            unsafe {
+                let s_ptr = available.stack.as_mut_ptr().offset(size as isize);
+                let s_ptr = (s_ptr as usize & !0x0f) as *mut u8;
+                std::ptr::write(s_ptr.offset(-16) as *mut u64, guard as u64);
+                std::ptr::write(s_ptr.offset(-24) as *mut u64, skip as u64);
+                std::ptr::write(s_ptr.offset(-32) as *mut u64, f as u64);
+                available.ctx.rsp = s_ptr.offset(-32) as u64;
+
+                println!(
+                    "spawn(): Thread stack, size: {}, s_ptr: {:#018x}, rsp: {:#018x}",
+                    size, s_ptr as u64, available.ctx.rsp
+                );
+            }
         }
         available.state = State::Ready;
     }
@@ -202,7 +251,7 @@ fn guard() {
     }
 }
 
-#[allow(unused)]
+#[cfg(target_arch = "x86_64")]
 #[unsafe(naked)]
 unsafe extern "C" fn skip() {
     naked_asm!("ret")
@@ -215,6 +264,39 @@ pub fn yield_thread() {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+unsafe extern "C" fn switch() {
+    //
+    // Save the current value of registers to the location pointed to by
+    // the first argument (rdi).  `rdi` contains the ThreadContext of the
+    // old thread.
+    //
+    // Then copy the values of the of the location pointed to by the second
+    // argument (rsi) to the registers.  This is our new stack.
+    // `rsi` contains the ThreadContext of the new thread.
+    //
+    naked_asm!(
+        "mov [rdi + 0x00], rsp",
+        "mov [rdi + 0x08], r15",
+        "mov [rdi + 0x10], r14",
+        "mov [rdi + 0x18], r13",
+        "mov [rdi + 0x20], r12",
+        "mov [rdi + 0x28], rbx",
+        "mov [rdi + 0x30], rbp",
+        "mov rsp, [rsi + 0x00]",
+        "mov r15, [rsi + 0x08]",
+        "mov r14, [rsi + 0x10]",
+        "mov r13, [rsi + 0x18]",
+        "mov r12, [rsi + 0x20]",
+        "mov rbx, [rsi + 0x28]",
+        "mov rbp, [rsi + 0x30]",
+        "ret"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 unsafe extern "C" fn switch() {
@@ -279,35 +361,10 @@ unsafe extern "C" fn switch() {
     );
 }
 
-#[allow(unused)]
-fn f() {
-    println!("\t\tf():\t\tThread: 1 Starting");
-    let id = 1;
-    for i in 0..2 {
-        println!("\t\tf():\t\tThread: {} counter: {}", id, i);
-        yield_thread();
-    }
-    println!("\t\tf():\t\tThread 1 Finished");
-}
-
-#[allow(unused)]
-fn g() {
-    println!("\t\tg():\t\tThread: 2 Starting");
-    let id = 2;
-    for i in 0..15 {
-        println!("\t\tg():\t\tThread: {} counter: {}", id, i);
-        yield_thread();
-    }
-    println!("\t\tg():\t\tThread 2 Finished");
-}
-
 pub fn main() {
     let mut runtime = Runtime::new();
 
     runtime.init();
-
-    // runtime.spawn(f);
-    // runtime.spawn(g);
 
     runtime.spawn(|| {
         println!("\t\tThread: 1 Starting");

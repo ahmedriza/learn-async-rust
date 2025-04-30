@@ -22,8 +22,6 @@ async fn main() -> std::io::Result<()> {
         .nth(1)
         .unwrap_or_else(|| String::from("localhost"));
 
-    let foo;
-
     HttpServer::new(|| App::new().service(delay))
         .bind((url, 7070))?
         .run()
