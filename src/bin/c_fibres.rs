@@ -193,6 +193,19 @@ impl Runtime {
                 );
             }
         }
+        #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+        {
+            unsafe {
+                let __old: *mut ThreadContext = &mut self.threads[old_pos].ctx;
+                let __new: *const ThreadContext = &self.threads[pos].ctx;
+                asm!(
+                "bl switch",
+                in("x0") __old,
+                in("x1") __new,
+                clobber_abi("C")
+                );
+            }
+        }
         #[cfg(target_arch = "x86_64")]
         {
             unsafe {
