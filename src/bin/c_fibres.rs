@@ -76,10 +76,6 @@ impl Thread {
     pub fn new() -> Self {
         let stack = vec![0; DEFAULT_STACK_SIZE];
         Thread {
-            // Once a stack is allocated, it must not move. No `push()` on
-            // the vector or any other methods that might trigger a relocation.
-            // If the stack is reallocated, any pointers we hold to it are
-            // invalidated.
             stack,
             ctx: ThreadContext::default(),
             state: State::Available,
@@ -108,8 +104,6 @@ pub struct Runtime {
 
 impl Runtime {
     pub fn new() -> Self {
-        // The base thread ensures that we keep the runtime running util all
-        // tasks are finished.
         let base_thread = Thread {
             stack: vec![0; DEFAULT_STACK_SIZE],
             ctx: ThreadContext::default(),
@@ -184,11 +178,6 @@ impl Runtime {
         let old_pos = _current;
         self.set_current(pos);
 
-        // The `clobber_abi("C")` tells the compiler that it may not assume
-        // that any general-purpose registers are preserved across the asm!
-        // block. The compiler will emit instructions to push the registers
-        // it uses to the stack, and restore them when resuming after the
-        // asm! block.
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
             unsafe {
@@ -286,16 +275,8 @@ pub fn yield_thread() {
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 unsafe extern "C" fn switch() {
-    //
-    // Save the current value of registers to the location pointed to by
-    // the first argument (rdi).  `rdi` contains the ThreadContext of the
-    // old thread.
-    //
-    // Then copy the values of the of the location pointed to by the second
-    // argument (rsi) to the registers.  This is our new stack.
-    // `rsi` contains the ThreadContext of the new thread.
-    //
     naked_asm!(
+        // Save the context of the current thread.
         "mov [rdi + 0x00], rsp",
         "mov [rdi + 0x08], r15",
         "mov [rdi + 0x10], r14",
@@ -303,6 +284,9 @@ unsafe extern "C" fn switch() {
         "mov [rdi + 0x20], r12",
         "mov [rdi + 0x28], rbx",
         "mov [rdi + 0x30], rbp",
+        //
+        // Set up the new thread context.  Load the values of the registers
+        // from the location pointed to by rsi.
         "mov rsp, [rsi + 0x00]",
         "mov r15, [rsi + 0x08]",
         "mov r14, [rsi + 0x10]",
