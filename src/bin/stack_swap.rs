@@ -68,7 +68,7 @@ fn t_return() {
     std::process::exit(0);
 }
 
-// #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 unsafe extern "C" fn context_switch() {
