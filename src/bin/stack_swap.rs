@@ -1,7 +1,11 @@
 use std::arch::naked_asm;
 
-/// Based on the example from
+/// Modified from the example from
 /// https://github.com/PacktPublishing/Asynchronous-Programming-in-Rust/blob/main/ch05/a-stack-swap/src/main.rs
+///
+/// This example demonstrates how to swap the stack using assembly code. It
+/// changes to a new stack and then calls a function. Then it returns to
+/// another specified function before terminating.
 ///
 /// The actual stack swap code is only for arm64 macOS as I have used
 /// arch64 assembly code to swap the stack.
@@ -11,23 +15,8 @@ pub const SSIZE: isize = 48;
 #[derive(Debug, Default)]
 #[repr(C)]
 pub struct ThreadContext {
-    // callee saved registers, x19 to x28
-    x19: u64,
-    x20: u64,
-    x21: u64,
-    x22: u64,
-    x23: u64,
-    x24: u64,
-    x25: u64,
-    x26: u64,
-    x27: u64,
-    x28: u64,
-    // x31 or stack pointer
     sp: u64,
-    // x29 or frame pointer
-    fp: u64,
-    // x30 or link register
-    lr: u64, // x30 or link register contains the return address
+    lr: u64,
 }
 
 fn main() {
@@ -49,16 +38,18 @@ fn main() {
         let s_ptr = (s_ptr as usize & !0x0f) as *mut u8;
         std::ptr::write(s_ptr.offset(-16) as *mut u64, t_return as u64);
 
-        let sp = s_ptr.offset(-16) as u64;
-        ctx.sp = sp;
+        ctx.sp = s_ptr.offset(-16) as u64;
         ctx.lr = hello as u64;
 
+        // When we print the stack, we should see the address of `t_return`
+        // at the top of the stack.
         print_stack(s_ptr);
 
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
             use std::arch::asm;
             let ctx_ptr: *mut ThreadContext = &mut ctx;
+            println!();
             asm!(
                 "bl _context_switch",
                 in("x0") ctx_ptr,
@@ -82,46 +73,15 @@ fn t_return() {
 #[unsafe(no_mangle)]
 unsafe extern "C" fn context_switch() {
     naked_asm! {
-        // Save the current context
-        "str x19, [sp, #0x00]",
-        "str x20, [sp, #0x08]",
-        "str x21, [sp, #0x10]",
-        "str x22, [sp, #0x18]",
-        "str x23, [sp, #0x20]",
-        "str x24, [sp, #0x28]",
-        "str x25, [sp, #0x30]",
-        "str x26, [sp, #0x38]",
-        "str x27, [sp, #0x40]",
-        "str x28, [sp, #0x48]",
-        "str x29, [sp, #0x50]",
-        "str x30, [sp, #0x58]",
-        //
-        // Load the new context
-        "ldr x19, [x0, #0x00]",
-        "ldr x20, [x0, #0x08]",
-        "ldr x21, [x0, #0x10]",
-        "ldr x22, [x0, #0x18]",
-        "ldr x23, [x0, #0x20]",
-        "ldr x24, [x0, #0x28]",
-        "ldr x25, [x0, #0x30]",
-        "ldr x26, [x0, #0x38]",
-        "ldr x27, [x0, #0x40]",
-        "ldr x28, [x0, #0x48]",
-        //
-        "ldr x10, [x0, #0x50]",
-        "mov sp, x10",
-        //
-        "ldr fp, [x0, #0x58]",
-        "ldr lr, [x0, #0x60]",
-        //
-        // Save the current lr to x11.
-        "mov x11, lr",
-        //
-        // Load the return address of the fuction we want to call from the stack
-        "ldr x10, [sp]",
-        "mov lr , x10",
-        //
-        "ret x11",
+        // Get the address of the `t_return` function and copy it to the
+        // link register, so that the link register is correctly setup when
+        // `hello` is called.
+        "ldr x10, [x0, #0x00]",
+        "ldr x11, [x10]",
+        "mov lr, x11",
+        // Get the starting address of the `hello` function
+        "ldr x12, [x0, #0x08]",
+        "ret x12",
     }
 }
 
