@@ -60,6 +60,7 @@ fn main() {
 
         let ctx_ptr: *mut ThreadContext = &mut ctx;
 
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         asm!(
             "bl _context_switch",
             in("x0") ctx_ptr,
@@ -77,6 +78,7 @@ fn t_return() {
     std::process::exit(0);
 }
 
+// #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 unsafe extern "C" fn context_switch() {
