@@ -2,6 +2,7 @@ pub const EPOLL_CTL_ADD: i32 = 1;
 pub const EPOLLIN: i32 = 0x1;
 pub const EPOLLET: i32 = 1 << 31;
 
+#[cfg(target_arch = "x86_64")]
 #[link(name = "c")]
 unsafe extern "C" {
     pub fn epoll_create(size: i32) -> i32;

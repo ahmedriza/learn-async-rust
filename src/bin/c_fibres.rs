@@ -15,10 +15,10 @@
 /// https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst#the-base-procedure-call-standard
 ///
 /// Running the code:
-/// * On macOS under Rosetta:
+/// * On macOS under Rosetta or macOS Intel:
 /// `cargo run --target x86_64-apple-darwin --bin c_fibres`
 ///
-/// * On macOS M1/M2:
+/// * On Linux or macOS M series:
 /// `cargo run --bin c_fibres`
 ///
 use std::arch::{asm, naked_asm};
