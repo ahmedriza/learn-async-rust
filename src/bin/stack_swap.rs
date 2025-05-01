@@ -1,14 +1,11 @@
 use std::arch::{asm, naked_asm};
 
-/// To run this example on MacOS:
+/// Based on the example from
+/// https://github.com/PacktPublishing/Asynchronous-Programming-in-Rust/blob/main/ch05/a-stack-swap/src/main.rs
 ///
-/// * `$env /usr/bin/arch -x86_64 /bin/zsh --login` in the terminal to force
-/// the current session to emulate a x86-64 architecture.
+/// The actual stack swap code is only for arm64 macOS as I have used 
+/// arch64 assembly code to swap the stack. 
 ///
-/// * `rustup target add x86_64-apple-darwin` if not done already
-///
-/// * `cargo run --target x86_64-apple-darwin --bin a_stack_swap`
-
 pub const SSIZE: isize = 48;
 
 #[derive(Debug, Default)]

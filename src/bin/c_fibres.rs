@@ -3,8 +3,15 @@
 /// "Asynchronous Programming in Rust" by Carl Fredrik Samson.
 ///
 /// The original example is designed to run on x86_64 Linux.  It's also
-/// possible to run the code on M series macOS machines.  See
-/// https://github.com/PacktPublishing/Asynchronous-Programming-in-Rust/blob/main/ch05/How-to-MacOS-M.md
+/// possible to run the code on M series macOS machines:
+///
+/// * `$env /usr/bin/arch -x86_64 /bin/zsh --login` in the terminal to force
+/// the current session to emulate a x86-64 architecture.
+///
+/// * `rustup target add x86_64-apple-darwin` if not done already
+///
+/// See
+/// https://github.com/PacktPublishing/Asynchronous-Programming-in-Rust/blob/main/ch05/How-to-MacOS-M.md for the details.
 ///
 /// I have extended the exmple to run on macOS and aarch64.  Conditional
 /// compilation is used to select the appropriate code for the target platform.
@@ -15,10 +22,10 @@
 /// https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst#the-base-procedure-call-standard
 ///
 /// Running the code:
-/// * On macOS under Rosetta or macOS Intel:
+/// * On macOS M series under Rosetta:
 /// `cargo run --target x86_64-apple-darwin --bin c_fibres`
 ///
-/// * On Linux or macOS M series:
+/// * On Linux or macOS M series natively:
 /// `cargo run --bin c_fibres`
 ///
 use std::arch::{asm, naked_asm};
