@@ -70,8 +70,8 @@ fn t_return() {
 #[unsafe(no_mangle)]
 unsafe extern "C" fn context_switch() {
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    use std::arch::naked_asm;
     {
+        use std::arch::naked_asm;
         naked_asm! {
             // Get the address of the `t_return` function and copy it to the
             // link register, so that the link register is correctly setup when
