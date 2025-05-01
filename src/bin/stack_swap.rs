@@ -55,9 +55,8 @@ fn main() {
 
         print_stack(s_ptr);
 
-        let ctx_ptr: *mut ThreadContext = &mut ctx;
-
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        let ctx_ptr: *mut ThreadContext = &mut ctx;
         asm!(
             "bl _context_switch",
             in("x0") ctx_ptr,
