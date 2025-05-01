@@ -1,4 +1,4 @@
-use std::arch::{asm, naked_asm};
+use std::arch::naked_asm;
 
 /// Based on the example from
 /// https://github.com/PacktPublishing/Asynchronous-Programming-in-Rust/blob/main/ch05/a-stack-swap/src/main.rs
@@ -57,6 +57,7 @@ fn main() {
 
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
         {
+            use std::arch::asm;
             let ctx_ptr: *mut ThreadContext = &mut ctx;
             asm!(
                 "bl _context_switch",
