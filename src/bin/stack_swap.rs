@@ -1,3 +1,5 @@
+use std::arch::naked_asm;
+
 /// Modified from the example from
 /// https://github.com/PacktPublishing/Asynchronous-Programming-in-Rust/blob/main/ch05/a-stack-swap/src/main.rs
 ///
@@ -66,23 +68,20 @@ fn t_return() {
     std::process::exit(0);
 }
 
+// #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 unsafe extern "C" fn context_switch() {
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    {
-        use std::arch::naked_asm;
-        naked_asm! {
-            // Get the address of the `t_return` function and copy it to the
-            // link register, so that the link register is correctly setup when
-            // `hello` is called.
-            "ldr x10, [x0, #0x00]",
-            "ldr x11, [x10]",
-            "mov lr, x11",
-            // Get the starting address of the `hello` function
-            "ldr x12, [x0, #0x08]",
-            "ret x12",
-        }
+    naked_asm! {
+        // Get the address of the `t_return` function and copy it to the
+        // link register, so that the link register is correctly setup when
+        // `hello` is called.
+        "ldr x10, [x0, #0x00]",
+        "ldr x11, [x10]",
+        "mov lr, x11",
+        // Get the starting address of the `hello` function
+        "ldr x12, [x0, #0x08]",
+        "ret x12",
     }
 }
 
