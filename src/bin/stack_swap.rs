@@ -3,8 +3,8 @@ use std::arch::{asm, naked_asm};
 /// Based on the example from
 /// https://github.com/PacktPublishing/Asynchronous-Programming-in-Rust/blob/main/ch05/a-stack-swap/src/main.rs
 ///
-/// The actual stack swap code is only for arm64 macOS as I have used 
-/// arch64 assembly code to swap the stack. 
+/// The actual stack swap code is only for arm64 macOS as I have used
+/// arch64 assembly code to swap the stack.
 ///
 pub const SSIZE: isize = 48;
 
@@ -56,19 +56,21 @@ fn main() {
         print_stack(s_ptr);
 
         #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-        let ctx_ptr: *mut ThreadContext = &mut ctx;
-        asm!(
-            "bl _context_switch",
-            in("x0") ctx_ptr,
-            clobber_abi("C"),
-        );
+        {
+            let ctx_ptr: *mut ThreadContext = &mut ctx;
+            asm!(
+                "bl _context_switch",
+                in("x0") ctx_ptr,
+                clobber_abi("C"),
+            );
+        }
 
         println!("Returned to main()");
     }
 }
 
 // The function that will be called when the context switch
-// is done. 
+// is done.
 fn t_return() {
     println!("Returned to t_return()");
     std::process::exit(0);
