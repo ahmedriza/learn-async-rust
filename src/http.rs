@@ -4,8 +4,8 @@ use std::io::{ErrorKind, Read, Write};
 pub struct Http;
 
 impl Http {
-    pub fn get(path: &str) -> impl Future<Output = String> {
-        HttpGetFuture::new(path)
+    pub fn get(path: String) -> impl Future<Output = String> {
+        HttpGetFuture::new(&path)
     }
 }
 

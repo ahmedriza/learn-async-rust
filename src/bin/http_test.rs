@@ -52,20 +52,22 @@ impl Future for Coroutine {
             match self.state {
                 State::Start => {
                     println!("Program starting");
-                    let fut = Box::new(Http::get("/600/HelloWorld1"));
+                    let fut =
+                        Box::new(Http::get("/600/HelloWorld1".to_string()));
                     self.state = State::Wait1(fut);
                 }
                 State::Wait1(ref mut fut) => match fut.poll() {
                     PollState::Ready(txt) => {
-                        println!("{txt}");
-                        let fut2 = Box::new(Http::get("/400/HelloWorld2"));
+                        println!("Response: {txt}");
+                        let fut2 =
+                            Box::new(Http::get("/400/HelloWorld2".to_string()));
                         self.state = State::Wait2(fut2);
                     }
                     PollState::NotReady => break PollState::NotReady,
                 },
                 State::Wait2(ref mut fut2) => match fut2.poll() {
                     PollState::Ready(txt2) => {
-                        println!("{txt2}");
+                        println!("Response: {txt2}");
                         self.state = State::Resolved;
                         break PollState::Ready(());
                     }
