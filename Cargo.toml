@@ -8,6 +8,7 @@ edition = "2024"
 [dependencies]
 actix-web = "4.9.0"
 anyhow = "1"
+mio = { version = "0.8", features = ["net", "os-poll"] }
 tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]
