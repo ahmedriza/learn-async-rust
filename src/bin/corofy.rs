@@ -31,7 +31,11 @@ fn main() -> anyhow::Result<()> {
                 .extension()
                 .map(|x| x.to_string_lossy())
                 .unwrap_or_default();
-            let clone = format!("{src_n}_corofied.{src_ext}");
+
+            println!("src_name: {src_n}");
+            println!("src_ext: {src_ext}");
+
+            let clone = format!("{src_n}_corofied.rs");
 
             match src.parent() {
                 Some(path) => path.join(&clone).clone(),

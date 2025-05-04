@@ -1,3 +1,7 @@
+//
+// This is the template file that needs to be run through `corofy` in order
+// to generate the state machine transformation for the async code.
+//
 use std::time::Instant;
 
 use learn_async_rust::{

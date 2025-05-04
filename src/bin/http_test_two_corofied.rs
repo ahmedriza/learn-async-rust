@@ -21,10 +21,13 @@ fn get_path(i: usize) -> String {
     format!("/{}/HelloWorld-{i}", i * 1000)
 }
 
+
+
+
 // =================================
 // We rewrite this:
 // =================================
-
+    
 // coroutine fn async_main() {
 //     println!("Program starting");
 //     let txt = Http::get(get_path(0)).wait;
@@ -44,10 +47,10 @@ fn get_path(i: usize) -> String {
 // Into this:
 // =================================
 
-fn async_main() -> impl Future<Output = String> {
+fn async_main() -> impl Future<Output=String> {
     Coroutine0::new()
 }
-
+        
 enum State0 {
     Start,
     Wait1(Box<dyn Future<Output = String>>),
@@ -64,24 +67,23 @@ struct Coroutine0 {
 
 impl Coroutine0 {
     fn new() -> Self {
-        Self {
-            state: State0::Start,
-        }
+        Self { state: State0::Start }
     }
 }
+
 
 impl Future for Coroutine0 {
     type Output = String;
 
     fn poll(&mut self) -> PollState<Self::Output> {
         loop {
-            match self.state {
+        match self.state {
                 State0::Start => {
                     // ---- Code you actually wrote ----
                     println!("Program starting");
 
                     // ---------------------------------
-                    let fut1 = Box::new(Http::get(get_path(0)));
+                    let fut1 = Box::new( Http::get(get_path(0)));
                     self.state = State0::Wait1(fut1);
                 }
 
@@ -92,7 +94,7 @@ impl Future for Coroutine0 {
                             println!("{txt}");
 
                             // ---------------------------------
-                            let fut2 = Box::new(Http::get(get_path(1)));
+                            let fut2 = Box::new( Http::get(get_path(1)));
                             self.state = State0::Wait2(fut2);
                         }
                         PollState::NotReady => break PollState::NotReady,
@@ -106,7 +108,7 @@ impl Future for Coroutine0 {
                             println!("{txt}");
 
                             // ---------------------------------
-                            let fut3 = Box::new(Http::get(get_path(2)));
+                            let fut3 = Box::new( Http::get(get_path(2)));
                             self.state = State0::Wait3(fut3);
                         }
                         PollState::NotReady => break PollState::NotReady,
@@ -120,7 +122,7 @@ impl Future for Coroutine0 {
                             println!("{txt}");
 
                             // ---------------------------------
-                            let fut4 = Box::new(Http::get(get_path(3)));
+                            let fut4 = Box::new( Http::get(get_path(3)));
                             self.state = State0::Wait4(fut4);
                         }
                         PollState::NotReady => break PollState::NotReady,
@@ -134,7 +136,7 @@ impl Future for Coroutine0 {
                             println!("{txt}");
 
                             // ---------------------------------
-                            let fut5 = Box::new(Http::get(get_path(4)));
+                            let fut5 = Box::new( Http::get(get_path(4)));
                             self.state = State0::Wait5(fut5);
                         }
                         PollState::NotReady => break PollState::NotReady,
@@ -155,7 +157,7 @@ impl Future for Coroutine0 {
                     }
                 }
 
-                State0::Resolved => panic!("Polled a resolved future"),
+                State0::Resolved => panic!("Polled a resolved future")
             }
         }
     }
