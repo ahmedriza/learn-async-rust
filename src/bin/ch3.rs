@@ -12,8 +12,8 @@ fn syscall(message: String) {
     let ptr = buffer.as_mut_ptr();
     unsafe {
         asm!(
-            "mov x16, 4", 
-            "mov x0, 1", 
+            "mov x16, 4",
+            "mov x0, 1",
             "svc 0",
             in("x1") ptr,
             in("x2") len,

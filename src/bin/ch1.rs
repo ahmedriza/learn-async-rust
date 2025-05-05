@@ -8,7 +8,6 @@ fn main() {
     //
     let x = dereference(t_ptr);
     println!("x: {}", x);
-
 }
 
 fn dereference(ptr: *const usize) -> usize {

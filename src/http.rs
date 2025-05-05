@@ -63,7 +63,7 @@ impl Future for HttpGetFuture {
                     continue;
                 }
                 Err(e) if e.kind() == ErrorKind::WouldBlock => {
-                    // Since we put the stream in non-blocking mode, 
+                    // Since we put the stream in non-blocking mode,
                     // the data is not ready yet, or there is more data, but
                     // we haven't received it yet.
                     return PollState::NotReady;
