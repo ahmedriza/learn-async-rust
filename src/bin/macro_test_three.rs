@@ -1,7 +1,6 @@
 //!
 //! https://veykril.github.io/tlborm/decl-macros/macros-practical.html
 //!
-
 macro_rules! count_exprs {
     () => (0);
     ($head:expr) => (1);
@@ -84,6 +83,12 @@ fn main() {
     let fib = recurrence![a[n]: u64 = 0, 1; ... ; a[n-1] + a[n-2]];
 
     for e in fib.take(10) {
+        println!("{e}");
+    }
+
+    println!();
+
+    for e in recurrence!(f[i]: f64 = 1.0; ...; f[i-1] * i as f64).take(10) {
         println!("{e}");
     }
 }
