@@ -48,6 +48,7 @@ where
     CURRENT_EXECUTOR.with(|e| {
         // Get the next available ID.
         let id = e.next_id.get();
+        println!("Spawning task with ID: {id}");
         // Assigns the ID to the future and store it in the HashMap.
         e.tasks.borrow_mut().insert(id, Box::new(future));
         // Adds the ID that represents this task to `ready_queue`, so that
@@ -86,6 +87,9 @@ impl Executor {
 
         loop {
             while let Some(id) = self.pop_ready() {
+
+                println!("Polling task with ID: {id}");
+
                 // Remove future from the `tasks` collection.
                 let mut future = match self.get_future(id) {
                     Some(f) => f,
@@ -126,6 +130,7 @@ impl Executor {
                     "{name}: {task_count} pending tasks, Sleep until notified."
                 );
                 std::thread::park();
+                println!("{name}: Woken up");
             } else {
                 // If the task count is 0, we're done with our asynchronous
                 // program and exit the main loop.
@@ -209,10 +214,12 @@ impl Waker {
     /// It will now find the task associated with this Waker in the ready
     /// queue and can call `poll` on it.
     pub fn wake(&self) {
+        println!("Waker::wake, id: {}", self.id);
         self.ready_queue
             .lock()
             .map(|mut q| q.push(self.id))
             .unwrap();
+        println!("Waking up thread: {:?}", self.thread.name());
         self.thread.unpark();
     }
 }

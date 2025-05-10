@@ -127,6 +127,7 @@ fn event_loop(mut poll: Poll, wakers: Wakers) {
         // first registered an interest in events on this `TcpStream`.
         for e in events.iter() {
             let Token(id) = e.token();
+            println!("Event occurred for id: {}, event: {:?}", id, e);
             let wakers = wakers.lock().unwrap();
             // We try to get the associated Waker and call `wake` on it.
             // We guard ourselves from the fact that the Waker may have been
