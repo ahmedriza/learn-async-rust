@@ -1,0 +1,27 @@
+//
+// This is the template file that needs to be run through `corofy_waker` 
+// in order to generate the state machine transformation for the async code.
+//
+
+use learn_async_rust::{
+    future_with_waker::{Future, PollState},
+    http_waker::Http, runtime_two,
+};
+
+fn main() {
+    let future = async_main();
+    let mut executor = runtime_two::init();
+    executor.block_on(future);
+}
+
+coroutine fn async_main() {
+    println!("Program starting");
+
+    let txt = Http::get("/600/HelloAsyncAwait".to_string()).wait;
+    println!("{txt}");
+    println!();
+    
+    let txt = Http::get("/400/HelloAsyncAwait".to_string()).wait;
+    println!("{txt}");
+    println!();
+}

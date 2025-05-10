@@ -1,6 +1,7 @@
-//
-// Generate state machine transformation for async code.
-// Run this program with the template file as the first argument.
+// 
+// This is similar to the code in `corify.rs` except for the fact that
+// we generate code for the `future_with_waker` whose `poll` function
+// takes a `Waker` as an argument. 
 //
 use once_cell::sync::OnceCell;
 use std::env;
@@ -332,10 +333,11 @@ impl Coroutine{id} {{
     // don't (if not we this get's very complicated without type information available)
     let mut imp = format!(
         "
+use learn_async_rust::executor::Waker;
 impl Future for Coroutine{id} {{
     type Output = String;
 
-    fn poll(&mut self) -> PollState<Self::Output> {{
+    fn poll(&mut self, waker: &Waker) -> PollState<Self::Output> {{
         loop {{"
     );
 
@@ -391,7 +393,7 @@ impl Future for Coroutine{id} {{
                 &mut imp,
                 "
                 State{id}::Wait{i}(ref mut f{i}) => {{
-                    match f{i}.poll() {{
+                    match f{i}.poll(waker) {{
                         PollState::Ready({varname}) => {{
                             // ---- Code you actually wrote ----
                         {step}
@@ -412,7 +414,7 @@ impl Future for Coroutine{id} {{
                 &mut imp,
                 "
                 State{id}::Wait{i}(ref mut f{i}) => {{
-                    match f{i}.poll() {{
+                    match f{i}.poll(waker) {{
                         PollState::Ready({varname}) => {{
                             // ---- Code you actually wrote ----
                         {step}
