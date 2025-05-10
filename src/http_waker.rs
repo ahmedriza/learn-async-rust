@@ -63,6 +63,7 @@ impl Future for HttpGetFuture {
 
             let stream = self.stream.as_mut().unwrap();
             reactor().register(stream, Interest::READABLE, self.id);
+            // Register the Waker with the reactor.
             reactor().set_waker(waker, self.id);
         }
 
@@ -85,6 +86,10 @@ impl Future for HttpGetFuture {
                     continue;
                 }
                 Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                    println!(
+                        "WouldBlock error occurred, storing waker: {:?}",
+                        std::thread::current().name().unwrap()
+                    );
                     // As per the Rust `Future::poll` documentation, it's
                     // expected that the Waker from the *most recent call*
                     // should be scheduled to wake up. That means that everytime

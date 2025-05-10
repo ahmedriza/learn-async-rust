@@ -20,39 +20,6 @@ pub fn reactor() -> &'static Reactor {
     REACTOR.get().expect("Called outside a runtime context")
 }
 
-/// Initialises and starts the reactor.
-pub fn start() {
-    use std::thread::spawn;
-
-    let wakers = Arc::new(Mutex::new(HashMap::new()));
-
-    let poll = Poll::new().unwrap();
-    let registry = poll.registry().try_clone().unwrap();
-    let next_id = AtomicUsize::new(1);
-    let reactor = Reactor {
-        wakers: wakers.clone(),
-        registry,
-        next_id,
-    };
-
-    REACTOR
-        .set(reactor)
-        .ok()
-        .expect("Reactor is already running");
-
-    // We spawn a new OS thread and start our event loop function on that one.
-    // This also means that pass on our `Poll` instance to the event loop
-    // thread for good.
-    //
-    // The best practice would be to store the `JoinHandle` returned from
-    // `spawn` so that can join the thread later on, but our thread has no way
-    // to shut down the event loop anyway, so joining it later on makes little
-    // sense, and we simply discard the handle.
-    spawn(move || {
-        event_loop(poll, wakers);
-    });
-}
-
 pub struct Reactor {
     // A HashMap of Waker objects, each identified by an integer ID.
     wakers: Wakers,
@@ -112,12 +79,45 @@ impl Reactor {
     }
 }
 
+/// Initialises and starts the reactor.
+pub fn start() {
+    use std::thread::spawn;
+
+    let wakers = Arc::new(Mutex::new(HashMap::new()));
+
+    let poll = Poll::new().unwrap();
+    let registry = poll.registry().try_clone().unwrap();
+    let next_id = AtomicUsize::new(1);
+    let reactor = Reactor {
+        wakers: wakers.clone(),
+        registry,
+        next_id,
+    };
+
+    REACTOR
+        .set(reactor)
+        .ok()
+        .expect("Reactor is already running");
+
+    // We spawn a new OS thread and start our event loop function on that one.
+    // This also means that pass on our `Poll` instance to the event loop
+    // thread for good.
+    //
+    // The best practice would be to store the `JoinHandle` returned from
+    // `spawn` so that can join the thread later on, but our thread has no way
+    // to shut down the event loop anyway, so joining it later on makes little
+    // sense, and we simply discard the handle.
+    spawn(move || {
+        event_loop(poll, wakers);
+    });
+}
+
+// Loop forever. This makes the example short and simple, but it has the
+// downside that we have no way of shutting our event loop down once it's
+// started.  Fixing is not that difficult, but since it won't be necessary
+// for our example, we won't do it here.
 fn event_loop(mut poll: Poll, wakers: Wakers) {
     let mut events = Events::with_capacity(100);
-    // Loop forever. This makes the example short and simple, but it has the
-    // downside that we have no way of shutting our event loop down once it's
-    // started.  Fixing is not that difficult, but since it won't be necessary
-    // for our example, we won't do it here.
     loop {
         // Call `poll` with a timeout of `None`, which means that it will block
         // until an event occurs.

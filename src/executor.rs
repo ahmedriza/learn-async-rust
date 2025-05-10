@@ -87,20 +87,20 @@ impl Executor {
 
         loop {
             while let Some(id) = self.pop_ready() {
-
                 println!("Polling task with ID: {id}");
 
                 // Remove future from the `tasks` collection.
                 let mut future = match self.get_future(id) {
                     Some(f) => f,
-                    // guard against false wakeups
+                    // guard against false wakeups. `mio` doesn't guarantee
+                    // that false wakeups won't happen.
                     None => continue,
                 };
                 // Create a new Waker instance. Remember that this Waker
                 // instance now holds the ID property that identifies the
                 // specific `Future` trait and a handle to the thread we are
                 // currently running on.
-                let waker = self.get_waker(id);
+                let waker = self.make_waker(id);
                 match future.poll(&waker) {
                     // If `NotReady` we insert the task back into the `tasks`
                     // collection.  When a `Future` trait returns `NotReady`,
@@ -158,7 +158,7 @@ impl Executor {
     }
 
     /// Create a new Waker instance.
-    fn get_waker(&self, id: usize) -> Waker {
+    fn make_waker(&self, id: usize) -> Waker {
         let thread = std::thread::current();
         let ready_queue = CURRENT_EXECUTOR.with(|q| q.ready_queue.clone());
         Waker {
