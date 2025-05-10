@@ -1,0 +1,42 @@
+//
+// This is the template file that needs to be run through `corofy` in order
+// to generate the state machine transformation for the async code.
+//
+use std::time::Instant;
+use chrono::Local;
+
+use learn_async_rust::{
+    future::{Future, PollState, join_all},
+    http::Http,
+};
+
+fn main() {
+    let start = Instant::now();
+    let mut future = async_main();
+    loop {
+        match future.poll() {
+            PollState::NotReady => (),
+            PollState::Ready(_) => break,
+        }
+    }
+    println!("\nELAPSED TIME: {}", start.elapsed().as_secs_f32());
+}
+
+coroutine fn request(i: usize) {
+    let path = format!("/{}/HelloWorld-{i}", i * 1000);
+    let txt = Http::get(path).wait;
+    let now = Local::now();
+    println!();
+    println!("{now} [{}] Response:\n{txt}", std::thread::current().name().unwrap());
+}
+
+coroutine fn async_main() {
+    println!("Program starting");
+    let mut futures = vec![];
+
+    for i in 0..5 {
+        futures.push(request(i));
+    }
+
+    join_all(futures).wait;
+}

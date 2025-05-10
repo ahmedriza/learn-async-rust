@@ -5,9 +5,11 @@ macro_rules! test_battery {
         $(
             mod $name {
                 use super::*;
+                #[allow(unused)]
                 pub fn frobnified() {
                     test_inner::<$t>(1, true);
                 }
+                #[allow(unused)]
                 pub fn unfrobnified() {
                     test_inner::<$t>(1, false);
                 }

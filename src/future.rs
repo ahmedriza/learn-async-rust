@@ -20,3 +20,28 @@ pub fn join_all<F: Future>(futures: Vec<F>) -> JoinAll<F> {
         finished_count: 0,
     }
 }
+
+impl<F: Future> Future for JoinAll<F> {
+    type Output = String;
+
+    fn poll(&mut self) -> PollState<Self::Output> {
+        for (finished, f) in self.futures.iter_mut() {
+            if *finished {
+                continue;
+            }
+            match f.poll() {
+                PollState::Ready(_) => {
+                    *finished = true;
+                    self.finished_count += 1;
+                }
+                PollState::NotReady => continue,
+            }
+        }
+
+        if self.finished_count == self.futures.len() {
+            PollState::Ready(String::new())
+        } else {
+            PollState::NotReady
+        }
+    }
+}

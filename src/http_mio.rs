@@ -1,6 +1,10 @@
 use chrono::Local;
+use mio::{Interest, Token};
 
-use crate::future::{Future, PollState};
+use crate::{
+    future::{Future, PollState},
+    runtime,
+};
 use std::io::{ErrorKind, Read, Write};
 
 pub struct Http;
@@ -52,7 +56,18 @@ impl Future for HttpGetFuture {
                 std::thread::current().name().unwrap()
             );
             self.write_request();
-            return PollState::NotReady;
+
+            // Register interest in `READABLE` events for the stream
+            runtime::registry()
+                .register(
+                    self.stream.as_mut().unwrap(),
+                    Token(0),
+                    Interest::READABLE,
+                )
+                .unwrap();
+
+            // We don't really need this anymore.
+            // return PollState::NotReady;
         }
 
         let mut buf = vec![0; 4096];
