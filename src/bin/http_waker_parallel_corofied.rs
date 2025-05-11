@@ -13,11 +13,19 @@ use learn_async_rust::{
     http_waker::Http, runtime_two,
 };
 
+//
+// To get the number of cores on a Mac:
+// `sysctl -n hw.ncpu`
+//
+// This will send 60 HTTP GET requests in total.
+//
 fn main() {
     let start = Instant::now();
     let mut executor = runtime_two::init();
     let mut handles = vec![];
 
+    // Create 11 parallel executors (each in their own thread) each running 
+    // 5 tasks.
     for i in 1..12 {
         let name = format!("exec-{i}");
         let h = Builder::new().name(name).spawn(move || {
@@ -26,7 +34,8 @@ fn main() {
         }).unwrap();
         handles.push(h);
     }
-
+  
+    // Submit another 5 tasks on the `main` thread.
     executor.block_on(async_main());
     handles.into_iter().for_each(|h| h.join().unwrap());
 
