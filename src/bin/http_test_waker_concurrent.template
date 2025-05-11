@@ -1,0 +1,38 @@
+//
+// This is the template file that needs to be run through `corofy_waker` 
+// in order to generate the state machine transformation for the async code.
+//
+
+use std::time::Instant;
+use chrono::Local;
+
+use learn_async_rust::{
+    executor::{self, Waker},
+    future_with_waker::{Future, PollState},
+    http_waker::Http, runtime_two,
+};
+
+fn main() {
+    let start = Instant::now();
+    let mut executor = runtime_two::init();
+    executor.block_on(async_main());
+
+    println!("\nELAPSED TIME: {}", start.elapsed().as_secs_f32());
+}
+
+coroutine fn request(i: usize) {
+    let path = format!("/{}/HelloWorld-{i}", i * 1000);
+    let txt = Http::get(path).wait;
+    let now = Local::now();
+    println!("{now} [{}] Response:\n{txt}", std::thread::current().name().unwrap());
+    println!();
+}
+
+coroutine fn async_main() {
+    println!("Program starting");
+
+    for i in 0..5 {
+        let future = request(i);
+        executor::spawn(future);
+    }
+}

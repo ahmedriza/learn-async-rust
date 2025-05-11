@@ -333,10 +333,12 @@ impl Coroutine{id} {{
     // don't (if not we this get's very complicated without type information available)
     let mut imp = format!(
         "
-use learn_async_rust::executor::Waker;
 impl Future for Coroutine{id} {{
     type Output = String;
 
+    // Supress warnings about unused variables since `waker` may not always
+    // be used directly.
+    #[allow(unused)]
     fn poll(&mut self, waker: &Waker) -> PollState<Self::Output> {{
         loop {{"
     );

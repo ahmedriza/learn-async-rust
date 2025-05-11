@@ -48,7 +48,6 @@ where
     CURRENT_EXECUTOR.with(|e| {
         // Get the next available ID.
         let id = e.next_id.get();
-        println!("Spawning task with ID: {id}");
         // Assigns the ID to the future and store it in the HashMap.
         e.tasks.borrow_mut().insert(id, Box::new(future));
         // Adds the ID that represents this task to `ready_queue`, so that
@@ -62,6 +61,22 @@ where
 
 // -----------------------------------------------------------------------------
 
+/// The functionalities of the executor are:
+///
+/// * Hold many top-level futures and switch between them.
+/// * Enable us to spawn new top-level futures from anywhere in our asynchronous
+///   program.
+/// * Hand out `Waker` types so that they can sleep when there is nothing to do
+///   and wake up when on of the top-level futures can progress.
+/// * Enable us to run several executors by having each run on its dedicated
+///   OS thread.
+///
+/// It's worth noting that our executor won't be fully multithreaded in the
+/// sense that tasks/futures can't be sent from one thread to another, and the
+/// different executor instances will not know of each other. Therefore,
+/// executors can't steal work from each other (no work stealing), and we can't
+/// rely on executors picking tasks from a global task queue.
+///
 pub struct Executor {}
 
 impl Executor {
@@ -87,8 +102,6 @@ impl Executor {
 
         loop {
             while let Some(id) = self.pop_ready() {
-                println!("Polling task with ID: {id}");
-
                 // Remove future from the `tasks` collection.
                 let mut future = match self.get_future(id) {
                     Some(f) => f,
@@ -130,7 +143,6 @@ impl Executor {
                     "{name}: {task_count} pending tasks, Sleep until notified."
                 );
                 std::thread::park();
-                println!("{name}: Woken up");
             } else {
                 // If the task count is 0, we're done with our asynchronous
                 // program and exit the main loop.
@@ -214,12 +226,10 @@ impl Waker {
     /// It will now find the task associated with this Waker in the ready
     /// queue and can call `poll` on it.
     pub fn wake(&self) {
-        println!("Waker::wake, id: {}", self.id);
         self.ready_queue
             .lock()
             .map(|mut q| q.push(self.id))
             .unwrap();
-        println!("Waking up thread: {:?}", self.thread.name());
         self.thread.unpark();
     }
 }
