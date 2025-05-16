@@ -1,0 +1,33 @@
+//
+// This program demonstrates how to use data across wait points.
+//
+// Run this template through `corofy_waker` to generate the Rust code.
+// The generated code, `http_wait_points_corofied.rs` need to be modified 
+// in order to handle the `counter` state across wait points.
+// 
+use std::fmt::Write;
+use learn_async_rust::{
+    executor::Waker,
+    future_with_waker::{Future, PollState},
+    http_waker::Http, runtime_two,
+};
+
+fn main() {
+    let future = async_main();
+    let mut executor = runtime_two::init();
+    executor.block_on(future);
+}
+
+coroutine fn async_main() {
+    let mut buffer = String::from("\nBUFFER:\n----\n");
+    let writer = &mut buffer;
+    println!("Program starting");
+
+    let txt = Http::get("/600/HelloAsyncAwait".to_string()).wait;
+    writeln!(writer, "{txt}").unwrap();
+    
+    let txt = Http::get("/400/HelloAsyncAwait".to_string()).wait;
+    writeln!(writer, "{txt}").unwrap();
+  
+    println!("{}", buffer);
+}
