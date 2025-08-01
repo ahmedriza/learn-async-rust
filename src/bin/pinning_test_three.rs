@@ -1,7 +1,6 @@
 //!
 //! See https://doc.rust-lang.org/std/pin/
 //!
-
 use std::{marker::PhantomPinned, pin::Pin, ptr::NonNull};
 
 struct Unmovable {
